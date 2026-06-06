@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <!-- Gagamit tayo ng sikat at ligtas na library para sa HTML5 QR Scanning via camera -->
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f6f9; text-align: center; }
+    .container { max-width: 400px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0px 4px 10px rgba(0,0,0,0.1); }
+    input, select { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; }
+    h2 { color: #2c3e50; margin-bottom: 5px; }
+    #reader { width: 100%; border-radius: 8px; overflow: hidden; margin-top: 15px; }
+    #result { margin-top: 20px; padding: 15px; border-radius: 5px; font-weight: bold; font-size: 18px; display: none; }
+    .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .scanning { background-color: #e2e3e5; color: #383d41; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h2>Recitation Scanner 📱</h2>
+  <p style="color: #7f8c8d; font-size: 14px; margin-top: 0;">Sir JR's Automated System</p>
+  
+  <input type="text" id="activity" value="Oral Recitation" placeholder="Activity Name">
+  <input type="number" id="points" value="5" placeholder="Points to award">
+  
+  <div id="reader"></div>
+  <div id="result"></div>
+</div>
+
+<script>
+  const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+  let isProcessing = false;
+
+  function onScanSuccess(decodedText, decodedResult) {
+    if (isProcessing) return; // Iwasan ang double scanning habang naglo-load
+    isProcessing = true;
+
+    const activity = document.getElementById("activity").value;
+    const points = document.getElementById("points").value;
+    const resultDiv = document.getElementById("result");
+
+    resultDiv.style.display = "block";
+    resultDiv.className = "scanning";
+    resultDiv.innerText = "⏳ Processing scan...";
+
+    // Ipapasa ang data sa Google Sheets gamit ang Apps Script Backend
+    google.script.run
+      .withSuccessHandler(function(response) {
+        resultDiv.className = response.status === "success" ? "success" : "error";
+        resultDiv.innerText = response.message;
+        
+        // Mag-antay ng 2 segundo bago payagang mag-scan ulit (para may oras ka lumipat ng estudyante)
+        setTimeout(() => {
+          isProcessing = false;
+        }, 2000);
+      })
+      .withFailureHandler(function(err) {
+        resultDiv.className = "error";
+        resultDiv.innerText = "System Error: " + err.message;
+        isProcessing = false;
+      })
+      .processScan(decodedText, activity, points);
+  }
+
+  html5QrcodeScanner.render(onScanSuccess);
+</script>
+
+</body>
+</html>
