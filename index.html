@@ -1,71 +1,235 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <base target="_top">
-  <!-- Gagamit tayo ng sikat at ligtas na library para sa HTML5 QR Scanning via camera -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Recitation Scanner</title>
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f6f9; text-align: center; }
-    .container { max-width: 400px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0px 4px 10px rgba(0,0,0,0.1); }
-    input, select { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; }
-    h2 { color: #2c3e50; margin-bottom: 5px; }
-    #reader { width: 100%; border-radius: 8px; overflow: hidden; margin-top: 15px; }
-    #result { margin-top: 20px; padding: 15px; border-radius: 5px; font-weight: bold; font-size: 18px; display: none; }
-    .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-    .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-    .scanning { background-color: #e2e3e5; color: #383d41; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f4f6f9;
+      text-align: center;
+    }
+
+    .container {
+      max-width: 420px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    input {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      border: 0;
+      border-radius: 5px;
+      background: #1f6feb;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background: #8daee8;
+      cursor: not-allowed;
+    }
+
+    h2 {
+      color: #2c3e50;
+      margin-bottom: 5px;
+    }
+
+    #reader {
+      width: 100%;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 15px;
+    }
+
+    #result {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 5px;
+      font-weight: bold;
+      font-size: 17px;
+      display: none;
+    }
+
+    .success {
+      background-color: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .error {
+      background-color: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .scanning {
+      background-color: #e2e3e5;
+      color: #383d41;
+      border: 1px solid #d6d8db;
+    }
   </style>
 </head>
 <body>
+  <div class="container">
+    <h2>Recitation Scanner</h2>
+    <p style="color: #7f8c8d; font-size: 14px; margin-top: 0;">Sir JR's Automated System</p>
 
-<div class="container">
-  <h2>Recitation Scanner 📱</h2>
-  <p style="color: #7f8c8d; font-size: 14px; margin-top: 0;">Sir JR's Automated System</p>
-  
-  <input type="text" id="activity" value="Oral Recitation" placeholder="Activity Name">
-  <input type="number" id="points" value="5" placeholder="Points to award">
-  
-  <div id="reader"></div>
-  <div id="result"></div>
-</div>
+    <input type="text" id="activity" value="Oral Recitation" placeholder="Activity Name">
+    <input type="number" id="points" value="5" min="1" placeholder="Points to award">
 
-<script>
-  const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-  let isProcessing = false;
+    <button id="startButton" type="button">Start Camera Scanner</button>
+    <div id="reader"></div>
+    <div id="result"></div>
+  </div>
 
-  function onScanSuccess(decodedText, decodedResult) {
-    if (isProcessing) return; // Iwasan ang double scanning habang naglo-load
-    isProcessing = true;
+  <script>
+    const WEB_APP_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_EXEC_URL_HERE";
 
-    const activity = document.getElementById("activity").value;
-    const points = document.getElementById("points").value;
+    const startButton = document.getElementById("startButton");
     const resultDiv = document.getElementById("result");
+    const scanner = new Html5Qrcode("reader");
 
-    resultDiv.style.display = "block";
-    resultDiv.className = "scanning";
-    resultDiv.innerText = "⏳ Processing scan...";
+    let isProcessing = false;
+    let scannerStarted = false;
 
-    // Ipapasa ang data sa Google Sheets gamit ang Apps Script Backend
-    google.script.run
-      .withSuccessHandler(function(response) {
-        resultDiv.className = response.status === "success" ? "success" : "error";
-        resultDiv.innerText = response.message;
-        
-        // Mag-antay ng 2 segundo bago payagang mag-scan ulit (para may oras ka lumipat ng estudyante)
+    function showResult(type, message) {
+      resultDiv.style.display = "block";
+      resultDiv.className = type;
+      resultDiv.innerText = message;
+    }
+
+    function callBackend(params) {
+      return new Promise((resolve, reject) => {
+        const callbackName = "scannerCallback_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+        const script = document.createElement("script");
+        const query = new URLSearchParams({
+          callback: callbackName,
+          qrText: params.qrText,
+          activity: params.activity,
+          points: String(params.points)
+        });
+
+        const timeoutId = setTimeout(() => {
+          cleanup();
+          reject(new Error("Backend request timed out."));
+        }, 10000);
+
+        function cleanup() {
+          clearTimeout(timeoutId);
+          delete window[callbackName];
+          script.remove();
+        }
+
+        window[callbackName] = (data) => {
+          cleanup();
+          resolve(data);
+        };
+
+        script.onerror = () => {
+          cleanup();
+          reject(new Error("Could not reach Apps Script backend."));
+        };
+
+        script.src = WEB_APP_URL + "?" + query.toString();
+        document.body.appendChild(script);
+      });
+    }
+
+    async function sendScan(decodedText) {
+      const activity = document.getElementById("activity").value.trim();
+      const points = Number(document.getElementById("points").value);
+
+      if (!activity) {
+        showResult("error", "Please enter an activity name.");
+        isProcessing = false;
+        return;
+      }
+
+      if (!Number.isFinite(points) || points <= 0) {
+        showResult("error", "Please enter valid points.");
+        isProcessing = false;
+        return;
+      }
+
+      showResult("scanning", "Processing scan...");
+
+      try {
+        const data = await callBackend({
+          qrText: decodedText,
+          activity,
+          points
+        });
+
+        showResult(data.status === "success" ? "success" : "error", data.message);
+
         setTimeout(() => {
           isProcessing = false;
+          if (scannerStarted) {
+            scanner.resume();
+          }
         }, 2000);
-      })
-      .withFailureHandler(function(err) {
-        resultDiv.className = "error";
-        resultDiv.innerText = "System Error: " + err.message;
+      } catch (error) {
+        showResult("error", "System Error: " + error.message);
         isProcessing = false;
-      })
-      .processScan(decodedText, activity, points);
-  }
+        if (scannerStarted) {
+          scanner.resume();
+        }
+      }
+    }
 
-  html5QrcodeScanner.render(onScanSuccess);
-</script>
+    async function startScanner() {
+      if (scannerStarted) return;
 
+      if (WEB_APP_URL.includes("PASTE_YOUR")) {
+        showResult("error", "Set WEB_APP_URL first.");
+        return;
+      }
+
+      startButton.disabled = true;
+      showResult("scanning", "Starting camera...");
+
+      try {
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (decodedText) => {
+            if (isProcessing) return;
+            isProcessing = true;
+            scanner.pause(true);
+            sendScan(decodedText);
+          }
+        );
+
+        scannerStarted = true;
+        showResult("success", "Camera scanner ready.");
+      } catch (error) {
+        startButton.disabled = false;
+        showResult("error", "Camera Error: " + error.message);
+      }
+    }
+
+    startButton.addEventListener("click", startScanner);
+  </script>
 </body>
 </html>
