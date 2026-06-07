@@ -3,7 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1f6feb">
   <title>Recitation Scanner</title>
+  <link rel="manifest" href="manifest.json">
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <style>
     body {
@@ -115,7 +117,6 @@
 
     <input type="text" id="activity" value="Oral Recitation" placeholder="Activity Name">
     <input type="number" id="points" value="5" min="1" placeholder="Points to award">
-
     <div class="manual-row">
       <input type="text" id="manualStudentId" placeholder="Type Student ID">
       <button id="manualButton" type="button">Record</button>
@@ -133,7 +134,6 @@
     const manualButton = document.getElementById("manualButton");
     const manualStudentId = document.getElementById("manualStudentId");
     const resultDiv = document.getElementById("result");
-
     const scanner = new Html5Qrcode("reader", {
       formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
       verbose: false
@@ -161,7 +161,6 @@
       return new Promise((resolve, reject) => {
         const callbackName = "scannerCallback_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
         const script = document.createElement("script");
-
         const query = new URLSearchParams({
           callback: callbackName,
           qrText: params.qrText,
@@ -195,10 +194,10 @@
       });
     }
 
-    async function sendStudentId(studentIdValue) {
-      const studentId = String(studentIdValue || "").trim();
+    async function sendScan(decodedText) {
       const activity = document.getElementById("activity").value.trim();
       const points = Number(document.getElementById("points").value);
+      const studentId = String(decodedText || "").trim();
 
       if (!studentId) {
         showResult("error", "Please enter or scan a Student ID.");
@@ -226,12 +225,11 @@
           activity,
           points
         });
-
         showResult(data.status === "success" ? "success" : "error", data.message);
 
         setTimeout(() => {
           releaseProcessing();
-        }, 1200);
+        }, 2000);
       } catch (error) {
         showResult("error", "System Error: " + error.message);
         releaseProcessing();
@@ -240,6 +238,11 @@
 
     function recordManualStudentId() {
       if (isProcessing) return;
+
+      if (WEB_APP_URL.includes("PASTE_YOUR")) {
+        showResult("error", "Set WEB_APP_URL first.");
+        return;
+      }
 
       const studentId = manualStudentId.value.trim();
 
@@ -256,12 +259,17 @@
         scanner.pause(true);
       }
 
+      sendScan(studentId);
       manualStudentId.value = "";
-      sendStudentId(studentId);
     }
 
     async function startScanner() {
       if (scannerStarted) return;
+
+      if (WEB_APP_URL.includes("PASTE_YOUR")) {
+        showResult("error", "Set WEB_APP_URL first.");
+        return;
+      }
 
       startButton.disabled = true;
       showResult("scanning", "Starting camera...");
@@ -277,10 +285,9 @@
           },
           (decodedText) => {
             if (isProcessing) return;
-
             isProcessing = true;
             scanner.pause(true);
-            sendStudentId(decodedText);
+            sendScan(decodedText);
           }
         );
 
@@ -293,14 +300,18 @@
     }
 
     startButton.addEventListener("click", startScanner);
-
     manualButton.addEventListener("click", recordManualStudentId);
-
     manualStudentId.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         recordManualStudentId();
       }
     });
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("service-worker.js");
+      });
+    }
   </script>
 </body>
 </html>
