@@ -70,6 +70,57 @@
       white-space: nowrap;
     }
 
+    .quick-points {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin: 0 0 10px;
+    }
+
+    .quick-points button {
+      margin-top: 0;
+      padding: 10px 6px;
+      background: #eef4ff;
+      color: #1f4e96;
+      border: 1px solid #b8cdf5;
+    }
+
+    .quick-points button.active {
+      background: #1f6feb;
+      color: white;
+      border-color: #1f6feb;
+    }
+
+    .recent-panel {
+      margin-top: 16px;
+      text-align: left;
+      border-top: 1px solid #e5e7eb;
+      padding-top: 12px;
+      display: none;
+    }
+
+    .recent-panel h3 {
+      margin: 0 0 8px;
+      color: #2c3e50;
+      font-size: 15px;
+    }
+
+    .recent-list {
+      display: grid;
+      gap: 6px;
+    }
+
+    .recent-item {
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: #334155;
+      font-size: 14px;
+      line-height: 1.35;
+      white-space: pre-line;
+    }
+
     h2 {
       color: #2c3e50;
       margin-bottom: 5px;
@@ -115,8 +166,14 @@
     <h2>Recitation Scanner</h2>
     <p style="color: #7f8c8d; font-size: 14px; margin-top: 0;">Sir JR's Automated System</p>
 
-    <input type="text" id="activity" value="Recitation" placeholder="Activity Name">
+    <input type="text" id="activity" value="recitation" placeholder="Activity Name">
     <input type="number" id="points" value="1" min="1" placeholder="Points to award">
+    <div class="quick-points">
+      <button class="quick-point active" type="button" data-points="1">+1</button>
+      <button class="quick-point" type="button" data-points="2">+2</button>
+      <button class="quick-point" type="button" data-points="3">+3</button>
+      <button class="quick-point" type="button" data-points="5">+5</button>
+    </div>
     <div class="manual-row">
       <input type="text" id="manualStudentId" placeholder="Type Student ID">
       <button id="manualButton" type="button">Record</button>
@@ -125,6 +182,10 @@
     <button id="startButton" type="button">Start Camera Scanner</button>
     <div id="reader"></div>
     <div id="result"></div>
+    <div id="recentPanel" class="recent-panel">
+      <h3>Recent Scans</h3>
+      <div id="recentList" class="recent-list"></div>
+    </div>
   </div>
 
   <script>
@@ -133,7 +194,11 @@
     const startButton = document.getElementById("startButton");
     const manualButton = document.getElementById("manualButton");
     const manualStudentId = document.getElementById("manualStudentId");
+    const pointsInput = document.getElementById("points");
     const resultDiv = document.getElementById("result");
+    const recentPanel = document.getElementById("recentPanel");
+    const recentList = document.getElementById("recentList");
+    const quickPointButtons = Array.from(document.querySelectorAll(".quick-point"));
     const scanner = new Html5Qrcode("reader", {
       formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
       verbose: false
@@ -141,11 +206,38 @@
 
     let isProcessing = false;
     let scannerStarted = false;
+    const recentScans = [];
 
     function showResult(type, message) {
       resultDiv.style.display = "block";
       resultDiv.className = type;
       resultDiv.innerText = message;
+    }
+
+    function addRecentScan(message) {
+      recentScans.unshift(message);
+
+      if (recentScans.length > 5) {
+        recentScans.pop();
+      }
+
+      recentPanel.style.display = "block";
+      recentList.innerHTML = "";
+
+      recentScans.forEach((scan) => {
+        const item = document.createElement("div");
+        item.className = "recent-item";
+        item.innerText = scan;
+        recentList.appendChild(item);
+      });
+    }
+
+    function updateQuickPointButtons() {
+      const selectedPoints = pointsInput.value;
+
+      quickPointButtons.forEach((button) => {
+        button.classList.toggle("active", button.dataset.points === selectedPoints);
+      });
     }
 
     function releaseProcessing() {
@@ -227,9 +319,13 @@
         });
         showResult(data.status === "success" ? "success" : "error", data.message);
 
+        if (data.status === "success") {
+          addRecentScan(data.message);
+        }
+
         setTimeout(() => {
           releaseProcessing();
-        }, 2000);
+        }, 1200);
       } catch (error) {
         showResult("error", "System Error: " + error.message);
         releaseProcessing();
@@ -301,6 +397,13 @@
 
     startButton.addEventListener("click", startScanner);
     manualButton.addEventListener("click", recordManualStudentId);
+    pointsInput.addEventListener("input", updateQuickPointButtons);
+    quickPointButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        pointsInput.value = button.dataset.points;
+        updateQuickPointButtons();
+      });
+    });
     manualStudentId.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         recordManualStudentId();
