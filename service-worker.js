@@ -1,4 +1,4 @@
-const CACHE_NAME = "recitation-scanner-v10";
+const CACHE_NAME = "recitation-scanner-v11";
 const ASSETS = [
   "./",
   "./index.html",
@@ -27,6 +27,12 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+  const requestUrl = new URL(event.request.url);
+
+  if (requestUrl.origin !== self.location.origin) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       return cachedResponse || fetch(event.request);
