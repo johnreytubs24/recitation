@@ -206,6 +206,7 @@
 
     let isProcessing = false;
     let scannerStarted = false;
+    let audioContext = null;
     const recentScans = [];
 
     function vibrate(pattern) {
@@ -214,14 +215,29 @@
       }
     }
 
-    function beep(frequency, duration, volume) {
+    function unlockFeedback() {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
 
       if (!AudioContext) {
         return;
       }
 
-      const audioContext = new AudioContext();
+      if (!audioContext) {
+        audioContext = new AudioContext();
+      }
+
+      if (audioContext.state === "suspended") {
+        audioContext.resume();
+      }
+    }
+
+    function beep(frequency, duration, volume) {
+      unlockFeedback();
+
+      if (!audioContext || audioContext.state !== "running") {
+        return;
+      }
+
       const oscillator = audioContext.createOscillator();
       const gain = audioContext.createGain();
 
@@ -235,7 +251,6 @@
       oscillator.start();
       setTimeout(() => {
         oscillator.stop();
-        audioContext.close();
       }, duration);
     }
 
@@ -379,6 +394,7 @@
 
     function recordManualStudentId() {
       if (isProcessing) return;
+      unlockFeedback();
 
       if (WEB_APP_URL.includes("PASTE_YOUR")) {
         showResult("error", "Set WEB_APP_URL first.");
@@ -406,6 +422,7 @@
 
     async function startScanner() {
       if (scannerStarted) return;
+      unlockFeedback();
 
       if (WEB_APP_URL.includes("PASTE_YOUR")) {
         showResult("error", "Set WEB_APP_URL first.");
@@ -445,6 +462,7 @@
     pointsInput.addEventListener("input", updateQuickPointButtons);
     quickPointButtons.forEach((button) => {
       button.addEventListener("click", () => {
+        unlockFeedback();
         pointsInput.value = button.dataset.points;
         updateQuickPointButtons();
       });
