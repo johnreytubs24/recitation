@@ -50,6 +50,24 @@
       cursor: not-allowed;
     }
 
+    .manual-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .manual-row input {
+      margin: 0;
+    }
+
+    .manual-row button {
+      width: 120px;
+      margin-top: 0;
+      padding-left: 10px;
+      padding-right: 10px;
+      white-space: nowrap;
+    }
+
     h2 {
       color: #2c3e50;
       margin-bottom: 5px;
@@ -97,6 +115,10 @@
 
     <input type="text" id="activity" value="Oral Recitation" placeholder="Activity Name">
     <input type="number" id="points" value="5" min="1" placeholder="Points to award">
+    <div class="manual-row">
+      <input type="text" id="manualStudentId" placeholder="Type Student ID">
+      <button id="manualButton" type="button">Record</button>
+    </div>
 
     <button id="startButton" type="button">Start Camera Scanner</button>
     <div id="reader"></div>
@@ -107,6 +129,8 @@
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw_p9PbNEfBxTCw2LamJ8aBxI9Y7-QUMCeNUAhrU3h0qu3CoUAqWGug3I4jORIzSY0U/exec";
 
     const startButton = document.getElementById("startButton");
+    const manualButton = document.getElementById("manualButton");
+    const manualStudentId = document.getElementById("manualStudentId");
     const resultDiv = document.getElementById("result");
     const scanner = new Html5Qrcode("reader");
 
@@ -117,6 +141,15 @@
       resultDiv.style.display = "block";
       resultDiv.className = type;
       resultDiv.innerText = message;
+    }
+
+    function releaseProcessing() {
+      isProcessing = false;
+      manualButton.disabled = false;
+
+      if (scannerStarted) {
+        scanner.resume();
+      }
     }
 
     function callBackend(params) {
@@ -159,43 +192,70 @@
     async function sendScan(decodedText) {
       const activity = document.getElementById("activity").value.trim();
       const points = Number(document.getElementById("points").value);
+      const studentId = String(decodedText || "").trim();
+
+      if (!studentId) {
+        showResult("error", "Please enter or scan a Student ID.");
+        releaseProcessing();
+        return;
+      }
 
       if (!activity) {
         showResult("error", "Please enter an activity name.");
-        isProcessing = false;
+        releaseProcessing();
         return;
       }
 
       if (!Number.isFinite(points) || points <= 0) {
         showResult("error", "Please enter valid points.");
-        isProcessing = false;
+        releaseProcessing();
         return;
       }
 
-      showResult("scanning", "Processing scan...");
+      showResult("scanning", "Processing Student ID...");
 
       try {
         const data = await callBackend({
-          qrText: decodedText,
+          qrText: studentId,
           activity,
           points
         });
-
         showResult(data.status === "success" ? "success" : "error", data.message);
 
         setTimeout(() => {
-          isProcessing = false;
-          if (scannerStarted) {
-            scanner.resume();
-          }
+          releaseProcessing();
         }, 2000);
       } catch (error) {
         showResult("error", "System Error: " + error.message);
-        isProcessing = false;
-        if (scannerStarted) {
-          scanner.resume();
-        }
+        releaseProcessing();
       }
+    }
+
+    function recordManualStudentId() {
+      if (isProcessing) return;
+
+      if (WEB_APP_URL.includes("PASTE_YOUR")) {
+        showResult("error", "Set WEB_APP_URL first.");
+        return;
+      }
+
+      const studentId = manualStudentId.value.trim();
+
+      if (!studentId) {
+        showResult("error", "Please type a Student ID.");
+        manualStudentId.focus();
+        return;
+      }
+
+      isProcessing = true;
+      manualButton.disabled = true;
+
+      if (scannerStarted) {
+        scanner.pause(true);
+      }
+
+      sendScan(studentId);
+      manualStudentId.value = "";
     }
 
     async function startScanner() {
@@ -230,6 +290,12 @@
     }
 
     startButton.addEventListener("click", startScanner);
+    manualButton.addEventListener("click", recordManualStudentId);
+    manualStudentId.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        recordManualStudentId();
+      }
+    });
   </script>
 </body>
 </html>
