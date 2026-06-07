@@ -1,7 +1,8 @@
-const CACHE_NAME = "recitation-scanner-v7";
+const CACHE_NAME = "recitation-scanner-v8";
 const ASSETS = [
   "./",
   "./index.html",
+  "./admin.html",
   "./manifest.json",
   "./icon.svg"
 ];
